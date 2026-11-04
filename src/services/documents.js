@@ -240,6 +240,34 @@ export async function deleteDocument(id) {
   return { id }
 }
 
+export async function permanentlyDeleteDocument(id, storagePath) {
+  const client = requireSupabase()
+  const { error: storageError } = await client.storage
+    .from(bucketName)
+    .remove([storagePath])
+
+  if (storageError?.code === '42501') {
+    throw new Error('Storage denied permanent deletion. Run supabase/admin-hard-delete-documents.sql in the Supabase project.')
+  }
+  if (storageError) throw getFriendlyError(storageError)
+
+  const { data: deleted, error } = await client.rpc('hard_delete_document', {
+    p_document_id: id,
+  })
+
+  if (error?.code === 'PGRST202') {
+    throw new Error('Admin permanent deletion is not configured. Run supabase/admin-hard-delete-documents.sql in the Supabase project.')
+  }
+  if (error) throw getFriendlyError(error)
+  if (!deleted) throw new Error("You don't have permission to permanently delete this document.")
+
+  invalidateCache('documents:')
+  invalidateCache('staff-records:')
+  invalidateCache('admin-dashboard:')
+  invalidateCache('admin-files:')
+  return { id }
+}
+
 export async function createDocumentDownloadUrl(storagePath) {
   const client = requireSupabase()
   const { data, error } = await client.storage

@@ -43,22 +43,32 @@ export default function SharedDocumentRow({
   onDownload,
   showOwner = true,
   showSharing = false,
+  showFolderLink = true,
   hideMatchingFileName = false,
+  titleContent,
   folderPathPrefix = '/records/shared/',
   downloadIcon = 'download',
   actions,
 }) {
   const isNew = isRecentlyUpdated(document.updatedAt, now)
   const showOriginalFileName = !hideMatchingFileName || document.original_file_name !== document.name
+  const folderLabel = (
+    <>
+      <Icon className="h-3.5 w-3.5 shrink-0" name="folder" />
+      <span className="truncate">{document.folder_name}</span>
+    </>
+  )
 
   return (
     <article className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-xl border border-line bg-white p-3.5 transition-colors hover:border-[#c5d3e2] lg:items-center lg:gap-4 ${showOwner ? 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,190px)_minmax(120px,165px)_auto]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,165px)_auto]'}`}>
       <div className="col-start-1 row-start-1 min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="h-4 w-4 shrink-0 text-accent" name="file" />
-          <p className="min-w-0 truncate text-sm font-bold text-ink" title={document.name}>
-            {document.name}
-          </p>
+          {titleContent || (
+            <p className="min-w-0 truncate text-sm font-bold text-ink" title={document.name}>
+              {document.name}
+            </p>
+          )}
           {isNew && (
             <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[#315b3c]">
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#37834a]" />
@@ -78,15 +88,20 @@ export default function SharedDocumentRow({
           <span className="shrink-0">{formatFileSize(document.file_size)}</span>
         </p>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <Link
-            aria-label={`Open folder ${document.folder_name}`}
-            className="inline-flex min-w-0 max-w-full items-center gap-1 text-xs font-medium text-accent no-underline hover:underline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-            title={document.folder_name}
-            to={`${folderPathPrefix}${document.folder_id}`}
-          >
-            <Icon className="h-3.5 w-3.5 shrink-0" name="folder" />
-            <span className="truncate">{document.folder_name}</span>
-          </Link>
+          {showFolderLink ? (
+            <Link
+              aria-label={`Open folder ${document.folder_name}`}
+              className="inline-flex min-w-0 max-w-full items-center gap-1 text-xs font-medium text-accent no-underline hover:underline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+              title={document.folder_name}
+              to={`${folderPathPrefix}${document.folder_id}`}
+            >
+              {folderLabel}
+            </Link>
+          ) : (
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-xs font-medium text-accent" title={document.folder_name}>
+              {folderLabel}
+            </span>
+          )}
           <DocumentCategoryPill type={document.record_type} />
           {showSharing && (
             <span

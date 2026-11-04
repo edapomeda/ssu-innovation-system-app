@@ -35,6 +35,7 @@ export default function SharedFolderCard({
   showSharing = false,
   folderPath = `/records/shared/${folder.id}`,
   actions,
+  titleContent,
   now,
 }) {
   const isNew = isRecentlyUpdated(folder.updatedAt, now)
@@ -44,13 +45,15 @@ export default function SharedFolderCard({
 
   return (
     <article className="relative min-h-44 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/4%)] transition-colors hover:border-[#c5d3e2] hover:bg-slate-50/70">
-      <Link
-        aria-label={`${showViewOnly ? 'View only. ' : ''}Open ${showViewOnly ? 'shared ' : ''}folder ${folder.name}${folder.owner ? ` by ${folder.owner.name}` : ''}`}
-        className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-        state={{ folderName: folder.name }}
-        to={folderPath}
-      />
-      <div className="pointer-events-none relative z-10 flex h-full min-h-36 flex-col">
+      {folderPath && (
+        <Link
+          aria-label={`${showViewOnly ? 'View only. ' : ''}Open ${showViewOnly ? 'shared ' : ''}folder ${folder.name}${folder.owner ? ` by ${folder.owner.name}` : ''}`}
+          className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          state={{ folderName: folder.name }}
+          to={folderPath}
+        />
+      )}
+      <div className={`relative z-10 flex h-full min-h-36 flex-col ${folderPath ? 'pointer-events-none' : ''}`}>
       <div className={`mb-3 flex items-center justify-between gap-3 ${actions ? 'pr-11' : ''}`}>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eaf0f7] text-accent">
           <Icon className="h-5 w-5" name="folder" />
@@ -81,7 +84,9 @@ export default function SharedFolderCard({
         </div>
       </div>
 
-      <p className="truncate text-sm font-bold text-ink" title={folder.name}>{folder.name}</p>
+      {titleContent || (
+        <p className="truncate text-sm font-bold text-ink" title={folder.name}>{folder.name}</p>
+      )}
       {showOwner && (
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <OwnerAvatar owner={folder.owner} size="h-6 w-6 text-[9px]" />

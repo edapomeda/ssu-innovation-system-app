@@ -84,6 +84,7 @@ export async function listAdminFiles(userId) {
         const folder = foldersById.get(document.folder_id)
         return {
           ...document,
+          owner_id: folder?.owner_id || null,
           folder_name: folder?.name || 'Unavailable folder',
           owner_name: folder?.owner_name || 'Unknown owner',
           owner_email: folder?.owner_email || '',

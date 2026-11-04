@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 .github/prompts
 supabase/*
+!supabase/admin-hard-delete-documents.sql
 !supabase/record-sharing.sql
 !supabase/staff-records.sql
