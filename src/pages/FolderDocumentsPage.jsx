@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { useAuth } from '../auth/useAuth'
 import DocumentCategoryPill from '../components/DocumentCategoryPill'
 import EmptyState from '../components/EmptyState'
@@ -7,7 +8,11 @@ import FormStep from '../components/FormStep'
 import Icon from '../components/Icon'
 import { PageLoadingSkeleton, RowsSkeleton } from '../components/LoadingSkeleton'
 import PageHeading from '../components/PageHeading'
+import FadeIn from '../components/motion/FadeIn'
+import ModalShell from '../components/motion/ModalShell'
+import { Stagger, StaggerItem } from '../components/motion/Stagger'
 import { getCachedData, hasCachedData } from '../lib/dataCache'
+import { fade, scaleIn } from '../lib/motion'
 import { listMyFolders, myFoldersCacheKey } from '../services/folders'
 import {
   createDocumentDownloadUrl,
@@ -44,13 +49,20 @@ export default function FolderDocumentsPage() {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [formMode, setFormMode] = useState('')
+  const [deleteDialog, setDeleteDialog] = useState(null)
+  const [listMutation, setListMutation] = useState(null)
+  const listMutationTimer = useRef(null)
   const [files, setFiles] = useState([])
   const [displayNames, setDisplayNames] = useState([])
   const [category, setCategory] = useState('')
   const [documentName, setDocumentName] = useState('')
   const [documentSharing, setDocumentSharing] = useState('inherit')
 
-  const refreshFolder = useCallback(async () => {
+  useEffect(() => () => {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+  }, [])
+
+  const refreshFolder = useCallback(async (mutation) => {
     setError('')
     try {
       const [folders, rows] = await Promise.all([
@@ -67,6 +79,7 @@ export default function FolderDocumentsPage() {
       }
 
       setFolder(currentFolder)
+      if (mutation) setListMutation(mutation)
       setDocuments(rows)
       return true
     } catch (requestError) {
@@ -76,6 +89,20 @@ export default function FolderDocumentsPage() {
       setLoading(false)
     }
   }, [folderId, userId])
+
+  function clearListMutation() {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+    listMutationTimer.current = null
+    setListMutation(null)
+  }
+
+  function finishListMutation() {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+    listMutationTimer.current = window.setTimeout(() => {
+      listMutationTimer.current = null
+      setListMutation(null)
+    }, 350)
+  }
 
   useEffect(() => {
     let active = true
@@ -166,7 +193,11 @@ export default function FolderDocumentsPage() {
       if (fileInputRef.current) fileInputRef.current.value = ''
       setFormMode('')
       setStatus(`${uploaded.length} file${uploaded.length === 1 ? '' : 's'} uploaded.`)
-      await refreshFolder()
+      if (await refreshFolder({ type: 'add', ids: uploaded.map((document) => document.id) })) {
+        finishListMutation()
+      } else {
+        clearListMutation()
+      }
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -201,20 +232,29 @@ export default function FolderDocumentsPage() {
     }
   }
 
-  async function handleDelete(document) {
-    if (!window.confirm(`Delete "${document.name}"? The file will be hidden but retained in storage.`)) {
-      return
-    }
+  function handleDelete(document) {
+    setDeleteDialog(document)
+  }
 
+  async function confirmDelete() {
+    if (!deleteDialog) return
+    const deletedId = deleteDialog.id
     setBusy(true)
     setError('')
     setStatus('')
     try {
-      await deleteDocument(document.id)
+      await deleteDocument(deleteDialog.id)
+      setDeleteDialog(null)
       cancelForm()
       setStatus('File deleted.')
-      await refreshFolder()
+      if (await refreshFolder({ type: 'delete', ids: [deletedId] })) {
+        finishListMutation()
+      } else {
+        clearListMutation()
+      }
     } catch (requestError) {
+      clearListMutation()
+      setDeleteDialog(null)
       setError(requestError.message)
     } finally {
       setBusy(false)
@@ -241,20 +281,32 @@ export default function FolderDocumentsPage() {
   }
 
   if (loading) {
-    return <PageLoadingSkeleton />
+    return (
+      <AnimatePresence mode="wait" initial={false}>
+        <FadeIn key="loading" variants={fade}>
+          <PageLoadingSkeleton />
+        </FadeIn>
+      </AnimatePresence>
+    )
   }
 
   if (!folder) {
     return (
-      <section className="grid gap-4 rounded-3.5 border border-line bg-white p-6 text-center shadow-[0_1px_2px_rgb(15_23_42/4%)]">
-        <h1 className="text-balance text-xl font-bold text-ink">Folder unavailable</h1>
-        <p className="text-sm text-[#a23e3e]" role="alert">{error}</p>
-        <Link className="mx-auto text-xs font-bold text-purple" to="/records/my">Back to folders</Link>
-      </section>
+      <AnimatePresence mode="wait" initial={false}>
+        <FadeIn key="unavailable" variants={fade}>
+          <section className="grid gap-4 rounded-3.5 border border-line bg-white p-6 text-center shadow-[0_1px_2px_rgb(15_23_42/4%)]">
+            <h1 className="text-balance text-xl font-bold text-ink">Folder unavailable</h1>
+            <p className="text-sm text-[#a23e3e]" role="alert">{error}</p>
+            <Link className="mx-auto text-xs font-bold text-purple" to="/records/my">Back to folders</Link>
+          </section>
+        </FadeIn>
+      </AnimatePresence>
     )
   }
 
   return (
+    <AnimatePresence mode="wait" initial={false}>
+      <FadeIn key="content" variants={fade}>
     <>
       <PageHeading
         description={`Manage files in this folder. ${folder.is_shared ? 'Shared with active staff.' : 'Private to you unless an individual file is shared.'}`}
@@ -366,10 +418,10 @@ export default function FolderDocumentsPage() {
         )}
 
         {loading ? (
-          <div aria-label="Loading files" className="py-2" role="status">
+          <FadeIn aria-label="Loading files" className="py-2" role="status">
             <span className="sr-only">Loading files...</span>
             <RowsSkeleton />
-          </div>
+          </FadeIn>
         ) : !documents.length ? (
           <EmptyState
             icon="folder"
@@ -377,11 +429,26 @@ export default function FolderDocumentsPage() {
             title="No files in this folder yet"
           />
         ) : (
-          <div className="grid gap-3">
-            {documents.map((document) => (
-              <article
-                className="group relative grid items-center gap-3 rounded-xl border border-line bg-white p-4 transition-colors hover:border-[#c5d3e2] hover:bg-slate-50/70 sm:grid-cols-[1fr_auto]"
+          <Stagger
+            className="grid gap-3"
+            itemKeys={documents.slice(0, 8).map((document) => document.id)}
+            key={`folder-documents-${folderId}`}
+          >
+          <AnimatePresence initial={false}>
+            {documents.map((document, index) => (
+              <StaggerItem
+                exit={listMutation?.type === 'delete' && listMutation.ids.includes(document.id) ? scaleIn.exit : undefined}
+                index={index}
+                initial={listMutation?.type === 'add' && listMutation.ids.includes(document.id) ? 'hidden' : undefined}
+                itemKey={document.id}
                 key={document.id}
+                layout={listMutation?.type === 'delete' ? 'position' : false}
+                variants={listMutation?.type === 'add' && listMutation.ids.includes(document.id) ? scaleIn : undefined}
+              >
+              <m.article
+                className="group relative grid items-center gap-3 rounded-xl border border-line bg-white p-4 transition-[border-color,background-color,box-shadow] hover:border-[#c5d3e2] hover:bg-slate-50/70 hover:shadow-md sm:grid-cols-[1fr_auto]"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.99 }}
               >
                 {formMode === document.id ? (
                   <form
@@ -506,14 +573,18 @@ export default function FolderDocumentsPage() {
                     />
                   </>
                 )}
-              </article>
+              </m.article>
+              </StaggerItem>
             ))}
-          </div>
+          </AnimatePresence>
+          </Stagger>
         )}
         {(error || status) && (
-          <p aria-live="polite" className={`text-xs ${error ? 'text-[#a23e3e]' : 'text-[#287a4b]'}`} role={error ? 'alert' : 'status'}>
-            {error || status}
-          </p>
+          <FadeIn>
+            <p aria-live="polite" className={`text-xs ${error ? 'text-[#a23e3e]' : 'text-[#287a4b]'}`} role={error ? 'alert' : 'status'}>
+              {error || status}
+            </p>
+          </FadeIn>
         )}
       </section>
       <button
@@ -523,6 +594,49 @@ export default function FolderDocumentsPage() {
       >
         Back to all folders
       </button>
+      <ModalShell
+        onClose={() => {
+          if (!busy) setDeleteDialog(null)
+        }}
+        open={Boolean(deleteDialog)}
+      >
+        {deleteDialog && (
+          <section
+            aria-describedby="delete-file-description"
+            aria-labelledby="delete-file-title"
+            aria-modal="true"
+            className="w-full max-w-lg rounded-2xl border border-line bg-white p-5 shadow-xl"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <h2 className="text-lg font-bold text-ink" id="delete-file-title">Delete file?</h2>
+            <p className="mt-1 text-sm leading-relaxed text-muted" id="delete-file-description">
+              Delete “{deleteDialog.name}”? This file will be hidden from My Records and retained in storage.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                className="min-h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-ink hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                disabled={busy}
+                onClick={() => setDeleteDialog(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                autoFocus
+                className="min-h-10 rounded-lg border border-red-700 bg-red-700 px-4 text-sm font-bold text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-red-700 focus-visible:outline-offset-2 disabled:opacity-60"
+                disabled={busy}
+                onClick={confirmDelete}
+                type="button"
+              >
+                {busy ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </section>
+        )}
+      </ModalShell>
     </>
+      </FadeIn>
+    </AnimatePresence>
   )
 }

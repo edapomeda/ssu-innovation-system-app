@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { m } from 'motion/react'
 import DocumentCategoryPill from './DocumentCategoryPill'
 import Icon from './Icon'
 import OwnerAvatar from './OwnerAvatar'
@@ -60,7 +61,11 @@ export default function SharedDocumentRow({
   )
 
   return (
-    <article className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-xl border border-line bg-white p-3.5 transition-colors hover:border-[#c5d3e2] lg:items-center lg:gap-4 ${showOwner ? 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,190px)_minmax(120px,165px)_auto]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,165px)_auto]'}`}>
+    <m.article
+      className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-xl border border-line bg-white p-3.5 transition-[border-color,box-shadow] hover:border-[#c5d3e2] hover:shadow-md lg:items-center lg:gap-4 ${showOwner ? 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,190px)_minmax(120px,165px)_auto]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(120px,165px)_auto]'}`}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.99 }}
+    >
       <div className="col-start-1 row-start-1 min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="h-4 w-4 shrink-0 text-accent" name="file" />
@@ -126,16 +131,17 @@ export default function SharedDocumentRow({
       </div>
 
       <div className={`col-start-2 row-start-1 flex items-center gap-1.5 self-start lg:self-center ${showOwner ? 'lg:col-start-4' : 'lg:col-start-3'}`}>
-        <button
+        <m.button
           aria-label={`Download ${document.name}`}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-ink hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-60"
           disabled={busy}
           onClick={() => onDownload(document)}
           title="Download"
           type="button"
+          whileTap={{ scale: 0.97 }}
         >
           <Icon className="h-4 w-4" name={downloadIcon} />
-        </button>
+        </m.button>
         {actions && <RecordActionsMenu items={actions} name={document.name} />}
       </div>
 
@@ -143,6 +149,6 @@ export default function SharedDocumentRow({
         {showOwner && <OwnerSummary owner={document.owner} />}
         <UpdateSummary now={now} value={document.updatedAt} />
       </div>
-    </article>
+    </m.article>
   )
 }

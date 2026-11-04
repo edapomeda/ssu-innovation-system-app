@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { useAuth } from '../auth/useAuth'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
@@ -7,7 +8,11 @@ import PageHeading from '../components/PageHeading'
 import SharedDocumentRow, { SharedDocumentRowsSkeleton } from '../components/SharedDocumentRow'
 import SharedFolderCard, { SharedFolderGridSkeleton } from '../components/SharedFolderCard'
 import SharedRecordsToolbar from '../components/SharedRecordsToolbar'
+import FadeIn from '../components/motion/FadeIn'
+import ModalShell from '../components/motion/ModalShell'
+import { Stagger, StaggerItem } from '../components/motion/Stagger'
 import { getCachedData, hasCachedData } from '../lib/dataCache'
+import { scaleIn, spring, tabFadeUp } from '../lib/motion'
 import {
   createDocumentDownloadUrl,
   deleteDocument,
@@ -50,14 +55,15 @@ function ActionButton({ children, onClick, variant = 'secondary', ...props }) {
     : 'border-line bg-white text-ink hover:bg-slate-50'
 
   return (
-    <button
+    <m.button
       className={`min-h-10 rounded-lg border px-4 text-sm font-bold focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${styles}`}
       onClick={onClick}
       type="button"
+      whileTap={{ scale: 0.97 }}
       {...props}
     >
       {children}
-    </button>
+    </m.button>
   )
 }
 
@@ -67,6 +73,7 @@ export default function RecordsPage() {
   const foldersKey = myFoldersCacheKey(userId)
   const documentsKey = documentsCacheKey(userId, 'all')
   const [tab, setTab] = useState('folders')
+  const [tabAnimationCycle, setTabAnimationCycle] = useState(0)
   const [query, setQuery] = useState('')
   const [sortOrder, setSortOrder] = useState('updated')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -84,6 +91,7 @@ export default function RecordsPage() {
   const [busyDocumentId, setBusyDocumentId] = useState('')
   const [dialog, setDialog] = useState(null)
   const [dialogError, setDialogError] = useState('')
+  const [listMutation, setListMutation] = useState(null)
   const [formName, setFormName] = useState('')
   const [formCategory, setFormCategory] = useState('')
   const [formSharing, setFormSharing] = useState('inherit')
@@ -134,6 +142,12 @@ export default function RecordsPage() {
     const timer = window.setTimeout(() => setStatus(''), 3500)
     return () => window.clearTimeout(timer)
   }, [status])
+
+  useEffect(() => {
+    if (!listMutation) return undefined
+    const timer = window.setTimeout(() => setListMutation(null), 350)
+    return () => window.clearTimeout(timer)
+  }, [listMutation])
 
   const folderItems = useMemo(() => {
     const documentsByFolder = new Map()
@@ -193,16 +207,19 @@ export default function RecordsPage() {
   function setSearch(value) {
     setQuery(value)
     setVisibleDocumentCount(20)
+    setListMutation(null)
   }
 
   function setSort(value) {
     setSortOrder(value)
     setVisibleDocumentCount(20)
+    setListMutation(null)
   }
 
   function setCategory(value) {
     setCategoryFilter(value)
     setVisibleDocumentCount(20)
+    setListMutation(null)
   }
 
   function openCreateFolder() {
@@ -250,6 +267,7 @@ export default function RecordsPage() {
     try {
       if (dialog.type === 'create-folder') {
         const created = await createFolder(formName)
+        setListMutation({ type: 'add', id: created.id })
         setFolders((current) => [created, ...current])
         setStatus('Folder created.')
       } else if (dialog.type === 'rename-folder') {
@@ -303,6 +321,11 @@ export default function RecordsPage() {
   }
 
   async function handleDelete() {
+    const mutation = {
+      type: 'delete',
+      id: dialog.item.id,
+    }
+    setListMutation(mutation)
     setBusy(true)
     setDialogError('')
     setStatus('')
@@ -322,6 +345,7 @@ export default function RecordsPage() {
       setDialog(null)
       setVisibleDocumentCount(20)
     } catch (requestError) {
+      setListMutation(null)
       setDialogError(getErrorMessage(requestError))
     } finally {
       setBusy(false)
@@ -393,22 +417,35 @@ export default function RecordsPage() {
             { id: 'folders', label: 'All folders', icon: 'folder', count: folders.length },
             { id: 'documents', label: 'All documents', icon: 'file', count: documents.length },
           ].map((item) => (
-            <button
+            <m.button
               aria-pressed={tab === item.id}
-              className={`flex min-h-12 min-w-0 items-center justify-center gap-1.5 border-b-2 px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'border-b-accent font-bold text-accent' : 'border-b-transparent text-muted hover:text-ink'}`}
+              className={`relative flex min-h-12 min-w-0 items-center justify-center gap-1.5 border-b-2 border-transparent px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'font-bold text-accent' : 'text-muted hover:text-ink'}`}
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => {
+                setTab(item.id)
+                setTabAnimationCycle((cycle) => cycle + 1)
+              }}
               type="button"
+              whileTap={{ scale: 0.97 }}
             >
+              {tab === item.id && (
+                <m.span
+                  className="absolute inset-x-0 bottom-[-1px] h-0.5 bg-accent"
+                  layoutId="my-records-tabs-indicator"
+                  transition={spring}
+                />
+              )}
               <Icon className="h-4 w-4 shrink-0" name={item.icon} />
               <span className="min-w-0 truncate">{item.label}</span>
               <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-semibold sm:px-2 sm:text-xs ${tab === item.id ? 'bg-[#eaf0f7] text-accent' : 'bg-slate-100 text-muted'}`}>
                 {loading && !hasCachedData(tab === 'folders' ? foldersKey : documentsKey) ? '…' : item.count}
               </span>
-            </button>
+            </m.button>
           ))}
         </div>
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={tab} variants={tabFadeUp}>
         <SharedRecordsToolbar
           categories={tab === 'documents' ? documentCategories : undefined}
           categoryBeforeSort={false}
@@ -427,24 +464,28 @@ export default function RecordsPage() {
         />
 
         {(errorMessage || status) && (
-          <div
-            aria-live="polite"
-            className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-sm ${errorMessage ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}
-            role={errorMessage ? 'alert' : 'status'}
-          >
-            <p>{errorMessage || status}</p>
-            {error && (
-              <button
-                className="min-h-9 rounded-lg border border-red-300 px-3 text-xs font-bold text-red-800 hover:bg-white focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-                onClick={refresh}
-                type="button"
-              >
-                Try again
-              </button>
-            )}
-          </div>
+          <FadeIn className="mb-4" variants={tabFadeUp}>
+            <div
+              aria-live="polite"
+              className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-sm ${errorMessage ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}
+              role={errorMessage ? 'alert' : 'status'}
+            >
+              <p>{errorMessage || status}</p>
+              {error && (
+                <button
+                  className="min-h-9 rounded-lg border border-red-300 px-3 text-xs font-bold text-red-800 hover:bg-white focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                  onClick={refresh}
+                  type="button"
+                >
+                  Try again
+                </button>
+              )}
+            </div>
+          </FadeIn>
         )}
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={`${tab}-${loading ? 'loading' : 'loaded'}`} variants={tabFadeUp}>
         {tab === 'folders' ? (
           loading ? (
             <SharedFolderGridSkeleton />
@@ -465,36 +506,51 @@ export default function RecordsPage() {
               <p aria-live="polite" className="px-1 text-xs text-muted">
                 Showing {folderItems.length} of {folders.length} {folders.length === 1 ? 'folder' : 'folders'}
               </p>
-              <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {folderItems.map((folder) => (
-                  <SharedFolderCard
-                    actions={[
-                      { label: 'Rename', icon: 'edit', onSelect: () => openRenameFolder(folder) },
-                      {
-                        label: folder.is_shared ? 'Stop sharing' : 'Share with active staff',
-                        icon: folder.is_shared ? 'lock' : 'users',
-                        onSelect: () => openShareFolder(folder),
-                      },
-                      {
-                        label: 'Delete',
-                        icon: 'trash',
-                        danger: true,
-                        onSelect: () => {
-                          setDialogError('')
-                          setDialog({ type: 'delete-folder', item: folder })
-                        },
-                      },
-                    ]}
-                    folder={folder}
-                    folderPath={`/records/${folder.id}`}
+              <Stagger
+                className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3"
+                itemKeys={folderItems.slice(0, 8).map((folder) => folder.id)}
+                key={`my-record-folders-${tabAnimationCycle}`}
+              >
+                <AnimatePresence initial={false}>
+                {folderItems.map((folder, index) => (
+                  <StaggerItem
+                    exit={listMutation?.type === 'delete' && listMutation.id === folder.id ? scaleIn.exit : undefined}
+                    index={index}
+                    initial={listMutation?.type === 'add' && listMutation.id === folder.id ? 'hidden' : undefined}
+                    itemKey={folder.id}
                     key={folder.id}
-                    now={now}
-                    showOwner={false}
-                    showSharing
-                    showViewOnly={false}
-                  />
+                    layout={listMutation?.type === 'delete' ? 'position' : false}
+                    variants={listMutation?.type === 'add' && listMutation.id === folder.id ? scaleIn : undefined}
+                  >
+                    <SharedFolderCard
+                      actions={[
+                        { label: 'Rename', icon: 'edit', onSelect: () => openRenameFolder(folder) },
+                        {
+                          label: folder.is_shared ? 'Stop sharing' : 'Share with active staff',
+                          icon: folder.is_shared ? 'lock' : 'users',
+                          onSelect: () => openShareFolder(folder),
+                        },
+                        {
+                          label: 'Delete',
+                          icon: 'trash',
+                          danger: true,
+                          onSelect: () => {
+                            setDialogError('')
+                            setDialog({ type: 'delete-folder', item: folder })
+                          },
+                        },
+                      ]}
+                      folder={folder}
+                      folderPath={`/records/${folder.id}`}
+                      now={now}
+                      showOwner={false}
+                      showSharing
+                      showViewOnly={false}
+                    />
+                  </StaggerItem>
                 ))}
-              </div>
+                </AnimatePresence>
+              </Stagger>
             </div>
           )
         ) : loading ? (
@@ -518,32 +574,47 @@ export default function RecordsPage() {
             <p aria-live="polite" className="px-1 text-xs text-muted">
               Showing {filteredDocuments.length} of {documents.length} {documents.length === 1 ? 'document' : 'documents'}
             </p>
-            {visibleDocuments.map((document) => (
-              <SharedDocumentRow
-                actions={[
-                  { label: 'Edit details', icon: 'edit', onSelect: () => openEditDocument(document) },
-                  {
-                    label: 'Delete',
-                    icon: 'trash',
-                    danger: true,
-                    onSelect: () => {
-                      setDialogError('')
-                      setDialog({ type: 'delete-document', item: document })
-                    },
-                  },
-                ]}
-                busy={busyDocumentId === document.id}
-                document={document}
-                downloadIcon="print"
-                folderPathPrefix="/records/"
-                hideMatchingFileName
-                key={document.id}
-                now={now}
-                onDownload={handleDownload}
-                showSharing
-                showOwner={false}
-              />
-            ))}
+            <Stagger
+              className="grid min-w-0 gap-3"
+              itemKeys={visibleDocuments.slice(0, 8).map((document) => document.id)}
+              key={`my-record-documents-${tabAnimationCycle}`}
+            >
+            <AnimatePresence initial={false}>
+              {visibleDocuments.map((document, index) => (
+                <StaggerItem
+                  exit={listMutation?.type === 'delete' && listMutation.id === document.id ? scaleIn.exit : undefined}
+                  index={index}
+                  itemKey={document.id}
+                  key={document.id}
+                  layout={listMutation?.type === 'delete' ? 'position' : false}
+                >
+                  <SharedDocumentRow
+                    actions={[
+                      { label: 'Edit details', icon: 'edit', onSelect: () => openEditDocument(document) },
+                      {
+                        label: 'Delete',
+                        icon: 'trash',
+                        danger: true,
+                        onSelect: () => {
+                          setDialogError('')
+                          setDialog({ type: 'delete-document', item: document })
+                        },
+                      },
+                    ]}
+                    busy={busyDocumentId === document.id}
+                    document={document}
+                    downloadIcon="print"
+                    folderPathPrefix="/records/"
+                    hideMatchingFileName
+                    now={now}
+                    onDownload={handleDownload}
+                    showSharing
+                    showOwner={false}
+                  />
+                </StaggerItem>
+              ))}
+            </AnimatePresence>
+            </Stagger>
             {visibleDocuments.length < filteredDocuments.length && (
               <button
                 className="mx-auto min-h-10 rounded-lg border border-line px-4 text-sm font-bold text-accent hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
@@ -555,15 +626,14 @@ export default function RecordsPage() {
             )}
           </div>
         )}
+          </FadeIn>
+        </AnimatePresence>
+          </FadeIn>
+        </AnimatePresence>
       </section>
 
-      {dialog && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeDialog()
-          }}
-        >
+      <ModalShell onClose={closeDialog} open={Boolean(dialog)}>
+        {dialog && (
           <section
             aria-describedby="record-dialog-description"
             aria-labelledby="record-dialog-title"
@@ -691,8 +761,8 @@ export default function RecordsPage() {
               </div>
             )}
           </section>
-        </div>
-      )}
+        )}
+      </ModalShell>
     </>
   )
 }

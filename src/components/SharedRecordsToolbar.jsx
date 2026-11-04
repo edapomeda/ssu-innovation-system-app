@@ -1,4 +1,6 @@
 import Icon from './Icon'
+import { m } from 'motion/react'
+import { spring } from '../lib/motion'
 
 export default function SharedRecordsToolbar({
   search,
@@ -75,15 +77,23 @@ export default function SharedRecordsToolbar({
               { id: 'grouped', label: 'Grouped' },
               { id: 'all', label: 'All' },
             ].map((option) => (
-              <button
+              <m.button
                 aria-pressed={view === option.id}
-                className={`min-w-20 rounded-md px-3 text-xs font-bold transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${view === option.id ? 'bg-accent text-white' : 'text-accent hover:bg-slate-50'}`}
+                className={`relative min-w-20 rounded-md px-3 text-xs font-bold transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${view === option.id ? 'text-white' : 'text-accent hover:bg-slate-50'}`}
                 key={option.id}
                 onClick={() => onViewChange(option.id)}
                 type="button"
+                whileTap={{ scale: 0.97 }}
               >
-                {option.label}
-              </button>
+                {view === option.id && (
+                  <m.span
+                    className="absolute inset-0 rounded-md bg-accent"
+                    layoutId="records-view-indicator"
+                    transition={spring}
+                  />
+                )}
+                <span className="relative z-10">{option.label}</span>
+              </m.button>
             ))}
           </div>
         </div>

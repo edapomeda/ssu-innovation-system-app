@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
+import { AnimatePresence, m } from 'motion/react'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
 import OwnerAvatar from '../components/OwnerAvatar'
@@ -7,7 +8,11 @@ import PageHeading from '../components/PageHeading'
 import SharedFolderCard, { SharedFolderGridSkeleton } from '../components/SharedFolderCard'
 import SharedDocumentRow, { SharedDocumentRowsSkeleton } from '../components/SharedDocumentRow'
 import SharedRecordsToolbar from '../components/SharedRecordsToolbar'
+import Collapse from '../components/motion/Collapse'
+import FadeIn from '../components/motion/FadeIn'
+import { Stagger, StaggerItem } from '../components/motion/Stagger'
 import { getCachedData, hasCachedData } from '../lib/dataCache'
+import { fade, spring, tabFadeUp } from '../lib/motion'
 import { createDocumentDownloadUrl, documentCategories } from '../services/documents'
 import { listStaffRecords, staffRecordsCacheKey } from '../services/staffRecords'
 
@@ -38,6 +43,8 @@ export default function AllRecordsPage() {
   const cacheKey = staffRecordsCacheKey(userId)
   const [records, setRecords] = useState(() => getCachedData(cacheKey) ?? { folders: [], documents: [] })
   const [tab, setTab] = useState('folders')
+  const [tabAnimationCycle, setTabAnimationCycle] = useState(0)
+  const [viewAnimationCycle, setViewAnimationCycle] = useState(0)
   const [now] = useState(() => Date.now())
   const [query, setQuery] = useState('')
   const [ownerFilter, setOwnerFilter] = useState('all')
@@ -208,13 +215,26 @@ export default function AllRecordsPage() {
     setLoadMore({ filterKey: '', count: 20 })
   }
 
-  function renderFolderCards(folders, showOwner) {
+  function renderFolderCards(folders, showOwner, stagger = false) {
+    const cards = folders.map((folder, index) => {
+      const card = <SharedFolderCard folder={folder} key={folder.id} now={now} showOwner={showOwner} />
+      return stagger
+        ? <StaggerItem index={index} itemKey={folder.id} key={folder.id}>{card}</StaggerItem>
+        : card
+    })
+
     return (
-      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {folders.map((folder) => (
-          <SharedFolderCard folder={folder} key={folder.id} now={now} showOwner={showOwner} />
-        ))}
-      </div>
+      stagger
+        ? (
+          <Stagger
+            className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3"
+            itemKeys={folders.slice(0, 8).map((folder) => folder.id)}
+            key={`shared-folders-${viewAnimationCycle}-${tabAnimationCycle}`}
+          >
+            {cards}
+          </Stagger>
+        )
+        : <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">{cards}</div>
     )
   }
 
@@ -256,28 +276,44 @@ export default function AllRecordsPage() {
             { id: 'folders', label: 'All folders', icon: 'folder', count: sharedFolders.length },
             { id: 'documents', label: 'All documents', icon: 'file', count: sharedDocuments.length },
           ].map((item) => (
-            <button
+            <m.button
               aria-pressed={tab === item.id}
-              className={`flex min-h-12 min-w-0 items-center justify-center gap-1.5 px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'border-b-2 border-b-accent font-bold text-accent' : 'border-b-2 border-transparent text-muted hover:text-ink'}`}
+              className={`relative flex min-h-12 min-w-0 items-center justify-center gap-1.5 border-b-2 border-transparent px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'font-bold text-accent' : 'text-muted hover:text-ink'}`}
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => {
+                setTab(item.id)
+                setTabAnimationCycle((cycle) => cycle + 1)
+              }}
               type="button"
+              whileTap={{ scale: 0.97 }}
             >
+              {tab === item.id && (
+                <m.span
+                  className="absolute inset-x-0 bottom-[-1px] h-0.5 bg-accent"
+                  layoutId="shared-records-tabs-indicator"
+                  transition={spring}
+                />
+              )}
               <Icon className="h-4 w-4 shrink-0" name={item.icon} />
               <span className="min-w-0 truncate">{item.label}</span>
               <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-semibold sm:px-2 sm:text-xs ${tab === item.id ? 'bg-[#eaf0f7] text-accent' : 'bg-slate-100 text-muted'}`}>
                 {item.count}
               </span>
-            </button>
+            </m.button>
           ))}
         </div>
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn className="min-w-0" key={tab} variants={tabFadeUp}>
         {tab === 'folders' ? (
           <SharedRecordsToolbar
             onOwnerChange={setOwnerFilter}
             onSearchChange={setQuery}
             onSortChange={setSortOrder}
-            onViewChange={setView}
+            onViewChange={(value) => {
+              setView(value)
+              setViewAnimationCycle((cycle) => cycle + 1)
+            }}
             ownerFilter={ownerFilter}
             owners={owners}
             search={query}
@@ -312,6 +348,8 @@ export default function AllRecordsPage() {
           />
         )}
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={`${tab}-${loading ? 'loading' : 'loaded'}`} variants={fade}>
         {tab === 'folders' ? (
           loading ? (
             <SharedFolderGridSkeleton />
@@ -343,50 +381,55 @@ export default function AllRecordsPage() {
               <p aria-live="polite" className="px-1 text-xs text-muted">
                 Showing {filteredFolders.length} of {sharedFolders.length} folders
               </p>
-              {view === 'all' ? (
-                renderFolderCards(filteredFolders, true)
-              ) : (
-                <div className="grid gap-6">
-                  {ownerGroups.map(({ owner, folders }) => {
-                    const sectionId = `shared-folder-group-${owner.id}`
-                    const isExpanded = !collapsedOwners[owner.id]
+              <AnimatePresence mode="wait" initial={false}>
+                <FadeIn key={view} variants={fade}>
+                  {view === 'all' ? (
+                    renderFolderCards(filteredFolders, true, viewAnimationCycle === 0)
+                  ) : (
+                    <div className="grid gap-6">
+                      {ownerGroups.map(({ owner, folders }) => {
+                        const sectionId = `shared-folder-group-${owner.id}`
+                        const isExpanded = !collapsedOwners[owner.id]
 
-                    return (
-                      <section aria-labelledby={`${sectionId}-heading`} className="grid gap-3" key={owner.id}>
-                        <header className="flex min-w-0 items-center gap-3">
-                          <OwnerAvatar owner={owner} />
-                          <div className="min-w-0 flex-1">
-                            <h2 className="truncate text-sm font-bold text-ink" id={`${sectionId}-heading`} title={owner.name}>
-                              {owner.name}
-                            </h2>
-                            <p className="text-xs text-muted">
-                              {folders.length} {folders.length === 1 ? 'folder' : 'folders'}
-                            </p>
-                          </div>
-                          <button
-                            aria-controls={sectionId}
-                            aria-expanded={isExpanded}
-                            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${owner.name} folders`}
-                            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-accent hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-                            onClick={() => setCollapsedOwners((current) => ({
-                              ...current,
-                              [owner.id]: !current[owner.id],
-                            }))}
-                            type="button"
-                          >
-                            <Icon className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} name="chevron" />
-                          </button>
-                        </header>
-                        {isExpanded && (
-                          <div className="grid gap-3" id={sectionId}>
-                            {renderFolderCards(folders, false)}
-                          </div>
-                        )}
-                      </section>
-                    )
-                  })}
-                </div>
-              )}
+                        return (
+                          <section aria-labelledby={`${sectionId}-heading`} className="grid gap-3" key={owner.id}>
+                            <header className="flex min-w-0 items-center gap-3">
+                              <OwnerAvatar owner={owner} />
+                              <div className="min-w-0 flex-1">
+                                <h2 className="truncate text-sm font-bold text-ink" id={`${sectionId}-heading`} title={owner.name}>
+                                  {owner.name}
+                                </h2>
+                                <p className="text-xs text-muted">
+                                  {folders.length} {folders.length === 1 ? 'folder' : 'folders'}
+                                </p>
+                              </div>
+                              <m.button
+                                aria-controls={sectionId}
+                                aria-expanded={isExpanded}
+                                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${owner.name} folders`}
+                                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-accent hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                                onClick={() => setCollapsedOwners((current) => ({
+                                  ...current,
+                                  [owner.id]: !current[owner.id],
+                                }))}
+                                type="button"
+                                whileTap={{ scale: 0.97 }}
+                              >
+                                <m.span animate={{ rotate: isExpanded ? 90 : 0 }} transition={spring}>
+                                  <Icon className="h-4 w-4" name="chevron" />
+                                </m.span>
+                              </m.button>
+                            </header>
+                            <Collapse className="grid gap-3" id={sectionId} open={isExpanded}>
+                              {renderFolderCards(folders, false)}
+                            </Collapse>
+                          </section>
+                        )
+                      })}
+                    </div>
+                  )}
+                </FadeIn>
+                  </AnimatePresence>
             </div>
           )
         ) : (
@@ -418,15 +461,22 @@ export default function AllRecordsPage() {
               <p className="px-1 text-xs text-muted">
                 Showing {filteredDocuments.length} of {sharedDocuments.length} {sharedDocuments.length === 1 ? 'document' : 'documents'}
               </p>
-              {visibleDocuments.map((item) => (
-                <SharedDocumentRow
-                  busy={busyDocumentId === item.id}
-                  document={item}
-                  key={item.id}
-                  now={now}
-                  onDownload={handleDownload}
-                />
-              ))}
+              <Stagger
+                className="grid gap-3"
+                itemKeys={visibleDocuments.slice(0, 8).map((item) => item.id)}
+                key={`shared-documents-${tabAnimationCycle}`}
+              >
+                {visibleDocuments.map((item, index) => (
+                  <StaggerItem index={index} itemKey={item.id} key={item.id}>
+                    <SharedDocumentRow
+                      busy={busyDocumentId === item.id}
+                      document={item}
+                      now={now}
+                      onDownload={handleDownload}
+                    />
+                  </StaggerItem>
+                ))}
+              </Stagger>
               {visibleDocuments.length < filteredDocuments.length && (
                 <button
                   className="mx-auto min-h-10 rounded-lg border border-line px-4 text-sm font-bold text-accent hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
@@ -439,6 +489,10 @@ export default function AllRecordsPage() {
             </div>
           )
         )}
+          </FadeIn>
+        </AnimatePresence>
+          </FadeIn>
+        </AnimatePresence>
       </section>
     </>
   )

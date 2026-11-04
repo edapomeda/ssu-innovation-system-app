@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { m } from 'motion/react'
 import { documentCategories } from '../services/documents'
 import OwnerAvatar from './OwnerAvatar'
 import Icon from './Icon'
@@ -44,7 +45,11 @@ export default function SharedFolderCard({
   const visibleCategories = categoryLabels.slice(0, 2)
 
   return (
-    <article className="relative min-h-44 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/4%)] transition-colors hover:border-[#c5d3e2] hover:bg-slate-50/70">
+    <m.article
+      className="relative min-h-44 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/4%)] transition-[border-color,background-color,box-shadow] hover:border-[#c5d3e2] hover:bg-slate-50/70 hover:shadow-md"
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.99 }}
+    >
       {folderPath && (
         <Link
           aria-label={`${showViewOnly ? 'View only. ' : ''}Open ${showViewOnly ? 'shared ' : ''}folder ${folder.name}${folder.owner ? ` by ${folder.owner.name}` : ''}`}
@@ -119,6 +124,6 @@ export default function SharedFolderCard({
           <RecordActionsMenu items={actions} name={folder.name} />
         </div>
       )}
-    </article>
+    </m.article>
   )
 }

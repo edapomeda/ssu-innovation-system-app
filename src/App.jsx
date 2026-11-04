@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react'
+import { lazy, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import RequireAdmin from './components/RequireAdmin'
@@ -8,7 +8,6 @@ import HomePage from './pages/HomePage'
 import ProfilePage from './pages/ProfilePage'
 import WelcomePage from './pages/WelcomePage'
 import { useAuth } from './auth/useAuth'
-import { PageLoadingSkeleton } from './components/LoadingSkeleton'
 
 const RecordsPage = lazy(() => import('./pages/RecordsPage'))
 const AllRecordsPage = lazy(() => import('./pages/AllRecordsPage'))
@@ -85,8 +84,7 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<PageLoadingSkeleton />}>
-      <Routes>
+    <Routes>
         <Route path="/" element={<WelcomePage />} />
         <Route
           path="/login"
@@ -167,7 +165,6 @@ export default function App() {
           </Route>
         </Route>
         <Route path="*" element={<Navigate replace to="/" />} />
-      </Routes>
-    </Suspense>
+    </Routes>
   )
 }

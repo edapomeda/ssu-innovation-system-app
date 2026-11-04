@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { m } from 'motion/react'
 import Icon from './Icon'
+import Popover from './motion/Popover'
 
 export default function RecordActionsMenu({ name, items }) {
   const [open, setOpen] = useState(false)
@@ -48,7 +50,7 @@ export default function RecordActionsMenu({ name, items }) {
 
   return (
     <div className="relative" onClick={(event) => event.stopPropagation()}>
-      <button
+      <m.button
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Actions for ${name}`}
@@ -59,14 +61,15 @@ export default function RecordActionsMenu({ name, items }) {
         }}
         ref={triggerRef}
         type="button"
+        whileTap={{ scale: 0.97 }}
       >
         <Icon className="h-5 w-5" name="more" />
-      </button>
-      {open && (
-        <div
+      </m.button>
+      <Popover
           aria-label={`Actions for ${name}`}
           className="absolute right-0 top-full z-30 mt-1 min-w-44 rounded-xl border border-line bg-white p-1.5 shadow-lg"
           onClick={(event) => event.stopPropagation()}
+          open={open}
           ref={menuRef}
           role="menu"
         >
@@ -88,8 +91,7 @@ export default function RecordActionsMenu({ name, items }) {
               {item.label}
             </button>
           ))}
-        </div>
-      )}
+      </Popover>
     </div>
   )
 }

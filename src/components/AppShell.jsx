@@ -1,9 +1,14 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, Suspense, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { useAuth } from '../auth/useAuth'
+import { PageLoadingSkeleton } from './LoadingSkeleton'
 import AppLink from './AppLink'
 import Brand from './Brand'
 import Icon from './Icon'
+import Collapse from './motion/Collapse'
+import PageTransition from './motion/PageTransition'
+import { spring } from '../lib/motion'
 
 const pages = [
   { id: 'home', label: 'Home', icon: 'home' },
@@ -52,40 +57,56 @@ function NavigationLinks({ mobile = false }) {
         >
           <Icon className="h-5 w-5 shrink-0" name="folder" />
           <span>Records</span>
-          <Icon
-            className={`ml-auto h-4 w-4 transition-transform ${recordsExpanded ? 'rotate-90' : ''}`}
-            name="chevron"
-          />
-          {recordsActive && <span className="absolute -right-4.25 h-6 w-0.75 rounded-l bg-white" />}
+          <m.span
+            animate={{ rotate: recordsExpanded ? 90 : 0 }}
+            className="ml-auto"
+            transition={spring}
+          >
+            <Icon className="h-4 w-4" name="chevron" />
+          </m.span>
         </button>
       )}
 
-      {recordsExpanded && (
-        <div
-          className={mobile
-            ? 'absolute inset-x-2 bottom-full mb-2 grid grid-cols-2 gap-1 rounded-xl border border-white/15 bg-[#173b65] p-2 shadow-lg'
-            : 'ml-5 mt-1 grid gap-1 border-l border-white/20 pl-3'}
-          id={mobile ? 'mobile-records-submenu' : 'desktop-records-submenu'}
-        >
+      <Collapse
+        className={mobile
+          ? 'absolute inset-x-2 bottom-full mb-2 grid grid-cols-2 gap-1 rounded-xl border border-white/15 bg-[#173b65] p-2 shadow-lg'
+          : 'ml-5 mt-1 grid gap-1 border-l border-white/20 pl-3'}
+        id={mobile ? 'mobile-records-submenu' : 'desktop-records-submenu'}
+        open={recordsExpanded}
+      >
           {recordPages.map((item) => (
             <NavLink
               aria-current={pathname === item.to || (item.id === 'mine' && isMyRecordsRoute) ? 'page' : undefined}
               className={({ isActive }) =>
                 mobile
                   ? `flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold no-underline transition-colors ${isActive || (item.id === 'mine' && isMyRecordsRoute) ? 'bg-white font-bold text-accent' : 'text-white/85 hover:bg-white/10 hover:text-white'}`
-                  : `flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-semibold no-underline transition-colors ${isActive || (item.id === 'mine' && isMyRecordsRoute) ? 'bg-white/15 font-bold text-white' : 'text-white/75 hover:bg-white/10 hover:text-white'}`
+                  : `relative flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-semibold no-underline transition-colors ${isActive || (item.id === 'mine' && isMyRecordsRoute) ? 'bg-white/15 font-bold text-white' : 'text-white/75 hover:bg-white/10 hover:text-white'}`
               }
               end={item.id === 'shared'}
               key={item.id}
               onClick={mobile ? () => setRecordsExpanded(false) : undefined}
               to={item.to}
             >
-              <Icon className="h-4 w-4 shrink-0" name={item.icon} />
-              <span className={mobile ? 'max-w-full truncate' : undefined}>{item.label}</span>
+              {({ isActive }) => {
+                const active = isActive || (item.id === 'mine' && isMyRecordsRoute)
+
+                return (
+                  <>
+                    <Icon className="h-4 w-4 shrink-0" name={item.icon} />
+                    <span className={mobile ? 'max-w-full truncate' : undefined}>{item.label}</span>
+                    {!mobile && active && (
+                      <m.span
+                        className="absolute -right-3.75 h-5 w-0.75 rounded-l bg-white"
+                        layoutId="sidebar-active-indicator"
+                        transition={spring}
+                      />
+                    )}
+                  </>
+                )
+              }}
             </NavLink>
           ))}
-        </div>
-      )}
+      </Collapse>
     </div>
   )
 
@@ -109,7 +130,11 @@ function NavigationLinks({ mobile = false }) {
                   {mobile && item.id === 'admin' ? 'Admin' : mobile && item.id === 'admin/files' ? 'Files' : item.label}
                 </span>
                 {!mobile && isActive && (
-                  <span className="absolute -right-4.25 h-6 w-0.75 rounded-l bg-white" />
+                  <m.span
+                    className="absolute -right-4.25 h-6 w-0.75 rounded-l bg-white"
+                    layoutId="sidebar-active-indicator"
+                    transition={spring}
+                  />
                 )}
               </>
             )}
@@ -123,6 +148,7 @@ function NavigationLinks({ mobile = false }) {
 
 export default function AppShell() {
   const [now, setNow] = useState(() => new Date())
+  const { pathname } = useLocation()
 
   useEffect(() => {
     const timerId = window.setInterval(() => setNow(new Date()), 1000)
@@ -189,7 +215,13 @@ export default function AppShell() {
       <div className="min-h-screen sm:pl-52 lg:pl-64 max-sm:pl-0">
         <div className="flex min-h-[calc(100vh-78px)] max-sm:min-h-[calc(100vh-112px)]">
           <main className="mx-auto min-w-0 max-w-280 flex-1 px-[clamp(28px,5vw,70px)] pb-20 pt-10.75 max-lg:px-7.5 max-sm:w-full max-sm:px-4.75 max-sm:pb-24 max-sm:pt-7.5">
-            <Outlet />
+            <Suspense fallback={<PageLoadingSkeleton />}>
+              <AnimatePresence mode="wait" initial={false}>
+                <PageTransition key={pathname}>
+                  <Outlet />
+                </PageTransition>
+              </AnimatePresence>
+            </Suspense>
           </main>
         </div>
       </div>

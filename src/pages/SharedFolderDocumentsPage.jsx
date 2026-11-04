@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { useAuth } from '../auth/useAuth'
 import DocumentCategoryPill from '../components/DocumentCategoryPill'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
 import { RowsSkeleton } from '../components/LoadingSkeleton'
 import PageHeading from '../components/PageHeading'
+import FadeIn from '../components/motion/FadeIn'
+import { Stagger, StaggerItem } from '../components/motion/Stagger'
 import { getCachedData, hasCachedData } from '../lib/dataCache'
+import { fade } from '../lib/motion'
 import { createDocumentDownloadUrl } from '../services/documents'
 import { listStaffRecords, staffRecordsCacheKey } from '../services/staffRecords'
 
@@ -125,6 +129,8 @@ export default function SharedFolderDocumentsPage() {
       )}
 
       <section aria-busy={loading} className="grid gap-3 rounded-3.5 border border-line bg-white p-5.5 shadow-[0_1px_2px_rgb(15_23_42/4%)] max-sm:p-4">
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={loading ? 'loading' : 'loaded'} variants={fade}>
         {loading ? (
           <div aria-label="Loading shared folder documents" role="status">
             <span className="sr-only">Loading folder documents...</span>
@@ -150,10 +156,17 @@ export default function SharedFolderDocumentsPage() {
                 {documents.length} {documents.length === 1 ? 'file' : 'files'}
               </span>
             </div>
-            {documents.map((document) => (
-              <article
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4 max-sm:items-start max-sm:p-3.5"
-                key={document.id}
+            <Stagger
+              className="grid gap-3"
+              itemKeys={documents.slice(0, 8).map((document) => document.id)}
+              key={`shared-folder-documents-${folderId}`}
+            >
+            {documents.map((document, index) => (
+              <StaggerItem index={index} itemKey={document.id} key={document.id}>
+              <m.article
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4 transition-[border-color,box-shadow] hover:border-[#c5d3e2] hover:shadow-md max-sm:items-start max-sm:p-3.5"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.99 }}
               >
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2.5 bg-[#eaf0f7] text-accent">
                   <Icon name="file" />
@@ -171,20 +184,25 @@ export default function SharedFolderDocumentsPage() {
                     View only
                   </p>
                 </div>
-                <button
+                <m.button
                   aria-label={`Open ${document.name}`}
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-ink hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-60"
                   disabled={busyDocumentId === document.id}
                   onClick={() => handleOpenDocument(document)}
                   title="Open document"
                   type="button"
+                  whileTap={{ scale: 0.97 }}
                 >
                   <Icon className="h-4 w-4" name="download" />
-                </button>
-              </article>
+                </m.button>
+              </m.article>
+              </StaggerItem>
             ))}
+            </Stagger>
           </>
         )}
+          </FadeIn>
+        </AnimatePresence>
       </section>
     </>
   )

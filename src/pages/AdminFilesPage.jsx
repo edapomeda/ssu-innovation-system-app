@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
+import { AnimatePresence, m } from 'motion/react'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
 import OwnerAvatar from '../components/OwnerAvatar'
@@ -7,7 +8,12 @@ import PageHeading from '../components/PageHeading'
 import SharedDocumentRow, { SharedDocumentRowsSkeleton } from '../components/SharedDocumentRow'
 import SharedFolderCard, { SharedFolderGridSkeleton } from '../components/SharedFolderCard'
 import SharedRecordsToolbar from '../components/SharedRecordsToolbar'
+import Collapse from '../components/motion/Collapse'
+import ModalShell from '../components/motion/ModalShell'
+import FadeIn from '../components/motion/FadeIn'
+import { Stagger, StaggerItem } from '../components/motion/Stagger'
 import { getCachedData, hasCachedData } from '../lib/dataCache'
+import { fade, scaleIn, spring, tabFadeUp } from '../lib/motion'
 import { adminFilesCacheKey, listAdminFiles } from '../services/adminFiles'
 import {
   createDocumentDownloadUrl,
@@ -44,6 +50,7 @@ export default function AdminFilesPage() {
   const cacheKey = adminFilesCacheKey(userId)
   const [library, setLibrary] = useState(() => getCachedData(cacheKey) ?? { folders: [], documents: [] })
   const [tab, setTab] = useState('folders')
+  const [tabAnimationCycle, setTabAnimationCycle] = useState(0)
   const [query, setQuery] = useState('')
   const [ownerFilter, setOwnerFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -55,8 +62,15 @@ export default function AdminFilesPage() {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [editing, setEditing] = useState('')
+  const [deleteDialog, setDeleteDialog] = useState(null)
+  const [listMutationId, setListMutationId] = useState('')
+  const listMutationTimer = useRef(null)
   const [name, setName] = useState('')
   const [now] = useState(() => Date.now())
+
+  useEffect(() => () => {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+  }, [])
 
   const refresh = useCallback(async () => {
     setError('')
@@ -71,6 +85,20 @@ export default function AdminFilesPage() {
       setLoading(false)
     }
   }, [userId])
+
+  function clearListMutation() {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+    listMutationTimer.current = null
+    setListMutationId('')
+  }
+
+  function finishListMutation() {
+    if (listMutationTimer.current) window.clearTimeout(listMutationTimer.current)
+    listMutationTimer.current = window.setTimeout(() => {
+      listMutationTimer.current = null
+      setListMutationId('')
+    }, 350)
+  }
 
   useEffect(() => {
     let active = true
@@ -183,6 +211,7 @@ export default function AdminFilesPage() {
   }, [visibleItems])
 
   function clearFilters() {
+    clearListMutation()
     setQuery('')
     setOwnerFilter('all')
     setCategoryFilter('all')
@@ -227,14 +256,16 @@ export default function AdminFilesPage() {
     }
   }
 
-  async function handleDelete(item) {
-    const itemType = tab === 'folders' ? 'folder' : 'document'
-    const extraMessage =
-      tab === 'folders'
-        ? ' Documents in the folder will no longer be available.'
-        : ' This permanently removes the file from storage and its record from the database.'
-    if (!window.confirm(`Delete ${itemType} "${item.name}"?${extraMessage}`)) return
+  function handleDelete(item) {
+    setDeleteDialog(item)
+  }
 
+  async function confirmDelete() {
+    if (!deleteDialog) return
+    const item = deleteDialog
+    const itemType = tab === 'folders' ? 'folder' : 'document'
+
+    setListMutationId(item.id)
     setBusy(true)
     setError('')
     setStatus('')
@@ -244,9 +275,17 @@ export default function AdminFilesPage() {
       } else {
         await permanentlyDeleteDocument(item.id, item.storage_path)
       }
+      setDeleteDialog(null)
       cancelEdit()
-      if (await refresh()) setStatus(`${itemType[0].toUpperCase()}${itemType.slice(1)} deleted.`)
+      if (await refresh()) {
+        setStatus(`${itemType[0].toUpperCase()}${itemType.slice(1)} deleted.`)
+        finishListMutation()
+      } else {
+        clearListMutation()
+      }
     } catch (requestError) {
+      clearListMutation()
+      setDeleteDialog(null)
       setError(requestError instanceof Error ? requestError.message : String(requestError))
     } finally {
       setBusy(false)
@@ -302,50 +341,82 @@ export default function AdminFilesPage() {
   }
 
   function renderFolderCards(items, showOwner) {
+    const cards = items.map((folder, index) => {
+      const card = (
+        <SharedFolderCard
+          actions={editing === folder.id ? undefined : [
+            { label: 'Rename', icon: 'edit', onSelect: () => startEdit(folder) },
+            { label: 'Delete', icon: 'trash', danger: true, onSelect: () => handleDelete(folder) },
+          ]}
+          folder={folder}
+          folderPath={null}
+          now={now}
+          showOwner={showOwner}
+          showViewOnly={false}
+          titleContent={editing === folder.id
+            ? renderNameEditor(folder, 100, 'Folder name')
+            : undefined}
+        />
+      )
+
+      return (
+        <StaggerItem
+          exit={listMutationId === folder.id ? scaleIn.exit : undefined}
+          index={index}
+          initial={false}
+          itemKey={folder.id}
+          key={folder.id}
+          layout={listMutationId ? 'position' : false}
+        >
+          {card}
+        </StaggerItem>
+      )
+    })
+
     return (
-      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((folder) => (
-          <SharedFolderCard
-            actions={editing === folder.id ? undefined : [
-              { label: 'Rename', icon: 'edit', onSelect: () => startEdit(folder) },
-              { label: 'Delete', icon: 'trash', danger: true, onSelect: () => handleDelete(folder) },
-            ]}
-            folder={folder}
-            folderPath={null}
-            key={folder.id}
-            now={now}
-            showOwner={showOwner}
-            showViewOnly={false}
-            titleContent={editing === folder.id
-              ? renderNameEditor(folder, 100, 'Folder name')
-              : undefined}
-          />
-        ))}
-      </div>
+      <Stagger
+        className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3"
+        itemKeys={[]}
+      >
+        <AnimatePresence initial={false}>{cards}</AnimatePresence>
+      </Stagger>
     )
   }
 
   function renderDocumentRows(items) {
     return (
-      <div className="grid gap-3">
-        {items.map((document) => (
-          <SharedDocumentRow
-            actions={editing === document.id ? undefined : [
-              { label: 'Rename', icon: 'edit', onSelect: () => startEdit(document) },
-              { label: 'Delete', icon: 'trash', danger: true, onSelect: () => handleDelete(document) },
-            ]}
-            busy={busy}
-            document={document}
-            key={document.id}
-            now={now}
-            onDownload={handleDownload}
-            showFolderLink={false}
-            titleContent={editing === document.id
-              ? renderNameEditor(document, 200, 'Document name')
-              : undefined}
-          />
-        ))}
-      </div>
+      <Stagger
+        className="grid gap-3"
+        itemKeys={items.slice(0, 8).map((document) => document.id)}
+        key={`admin-documents-${tabAnimationCycle}`}
+      >
+        <AnimatePresence initial={false}>
+          {items.map((document, index) => (
+            <StaggerItem
+              exit={listMutationId === document.id ? scaleIn.exit : undefined}
+              index={index}
+              itemKey={document.id}
+              key={document.id}
+              layout={listMutationId ? 'position' : false}
+            >
+              <SharedDocumentRow
+                actions={editing === document.id ? undefined : [
+                  { label: 'Rename', icon: 'edit', onSelect: () => startEdit(document) },
+                  { label: 'Delete', icon: 'trash', danger: true, onSelect: () => handleDelete(document) },
+                ]}
+                busy={busy}
+                document={document}
+                now={now}
+                onDownload={handleDownload}
+                showFolderLink={false}
+                titleContent={editing === document.id
+                  ? renderNameEditor(document, 200, 'Document name')
+                  : undefined}
+              />
+            </StaggerItem>
+          ))}
+        </AnimatePresence>
+      </Stagger>
     )
   }
 
@@ -373,33 +444,53 @@ export default function AdminFilesPage() {
             { id: 'folders', label: 'All folders', icon: 'folder', count: library.folders.length },
             { id: 'documents', label: 'All documents', icon: 'file', count: library.documents.length },
           ].map((item) => (
-            <button
+            <m.button
               aria-pressed={tab === item.id}
-              className={`flex min-h-12 min-w-0 items-center justify-center gap-1.5 px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'border-b-2 border-b-accent font-bold text-accent' : 'border-b-2 border-transparent text-muted hover:text-ink'}`}
+              className={`relative flex min-h-12 min-w-0 items-center justify-center gap-1.5 border-b-2 border-transparent px-1.5 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:gap-2 sm:px-3 ${tab === item.id ? 'font-bold text-accent' : 'text-muted hover:text-ink'}`}
               key={item.id}
               onClick={() => {
                 setTab(item.id)
+                setTabAnimationCycle((cycle) => cycle + 1)
                 clearFilters()
                 setView('grouped')
                 cancelEdit()
                 setStatus('')
               }}
               type="button"
+              whileTap={{ scale: 0.97 }}
             >
+              {tab === item.id && (
+                <m.span
+                  className="absolute inset-x-0 bottom-[-1px] h-0.5 bg-accent"
+                  layoutId="admin-files-tabs-indicator"
+                  transition={spring}
+                />
+              )}
               <Icon className="h-4 w-4 shrink-0" name={item.icon} />
               <span className="min-w-0 truncate">{item.label}</span>
               <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-semibold sm:px-2 sm:text-xs ${tab === item.id ? 'bg-[#eaf0f7] text-accent' : 'bg-slate-100 text-muted'}`}>
                 {item.count}
               </span>
-            </button>
+            </m.button>
           ))}
         </div>
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={tab} variants={tabFadeUp}>
         {tab === 'folders' ? (
           <SharedRecordsToolbar
-            onOwnerChange={setOwnerFilter}
-            onSearchChange={setQuery}
-            onSortChange={setSortOrder}
+            onOwnerChange={(value) => {
+              setListMutationId('')
+              setOwnerFilter(value)
+            }}
+            onSearchChange={(value) => {
+              setListMutationId('')
+              setQuery(value)
+            }}
+            onSortChange={(value) => {
+              setListMutationId('')
+              setSortOrder(value)
+            }}
             onViewChange={setView}
             ownerFilter={ownerFilter}
             owners={owners}
@@ -417,10 +508,22 @@ export default function AdminFilesPage() {
           <SharedRecordsToolbar
             categories={documentCategories}
             categoryFilter={categoryFilter}
-            onCategoryChange={setCategoryFilter}
-            onOwnerChange={setOwnerFilter}
-            onSearchChange={setQuery}
-            onSortChange={setSortOrder}
+            onCategoryChange={(value) => {
+              setListMutationId('')
+              setCategoryFilter(value)
+            }}
+            onOwnerChange={(value) => {
+              setListMutationId('')
+              setOwnerFilter(value)
+            }}
+            onSearchChange={(value) => {
+              setListMutationId('')
+              setQuery(value)
+            }}
+            onSortChange={(value) => {
+              setListMutationId('')
+              setSortOrder(value)
+            }}
             ownerFilter={ownerFilter}
             owners={owners}
             search={query}
@@ -435,6 +538,8 @@ export default function AdminFilesPage() {
           />
         )}
 
+        <AnimatePresence mode="wait" initial={false}>
+          <FadeIn key={`${tab}-${loading ? 'loading' : 'loaded'}`} variants={fade}>
         {loading ? (
           tab === 'folders' ? <SharedFolderGridSkeleton /> : <SharedDocumentRowsSkeleton />
         ) : error && !visibleItems.length ? (
@@ -476,7 +581,10 @@ export default function AdminFilesPage() {
                 ? library.folders.length === 1 ? 'folder' : 'folders'
                 : library.documents.length === 1 ? 'document' : 'documents'}
             </p>
-            {tab === 'folders' && view === 'grouped' ? (
+            {tab === 'folders' ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <FadeIn key={view} variants={fade}>
+                {view === 'grouped' ? (
               <div className="grid gap-6">
                 {ownerGroups.map(({ owner, folders }) => {
                   const sectionId = `admin-folder-group-${owner.id}`
@@ -494,7 +602,7 @@ export default function AdminFilesPage() {
                             {folders.length} {folders.length === 1 ? 'folder' : 'folders'}
                           </p>
                         </div>
-                        <button
+                        <m.button
                           aria-controls={sectionId}
                           aria-expanded={isExpanded}
                           aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${owner.name} folders`}
@@ -504,27 +612,80 @@ export default function AdminFilesPage() {
                             [owner.id]: !current[owner.id],
                           }))}
                           type="button"
+                          whileTap={{ scale: 0.97 }}
                         >
-                          <Icon className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} name="chevron" />
-                        </button>
+                          <m.span animate={{ rotate: isExpanded ? 90 : 0 }} transition={spring}>
+                            <Icon className="h-4 w-4" name="chevron" />
+                          </m.span>
+                        </m.button>
                       </header>
-                      {isExpanded && (
-                        <div className="grid gap-3" id={sectionId}>
-                          {renderFolderCards(folders, false)}
-                        </div>
-                      )}
+                      <Collapse className="grid gap-3" id={sectionId} open={isExpanded}>
+                        {renderFolderCards(folders, false)}
+                      </Collapse>
                     </section>
                   )
                 })}
               </div>
-            ) : tab === 'folders' ? (
-              renderFolderCards(visibleItems, true)
+                ) : (
+                  renderFolderCards(visibleItems, true)
+                )}
+                </FadeIn>
+              </AnimatePresence>
             ) : (
               renderDocumentRows(visibleItems)
             )}
           </div>
         )}
+          </FadeIn>
+        </AnimatePresence>
+          </FadeIn>
+        </AnimatePresence>
       </section>
+      <ModalShell
+        onClose={() => {
+          if (!busy) setDeleteDialog(null)
+        }}
+        open={Boolean(deleteDialog)}
+      >
+        {deleteDialog && (
+          <section
+            aria-describedby="admin-delete-description"
+            aria-labelledby="admin-delete-title"
+            aria-modal="true"
+            className="w-full max-w-lg rounded-2xl border border-line bg-white p-5 shadow-xl"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <h2 className="text-lg font-bold text-ink" id="admin-delete-title">
+              Delete {tab === 'folders' ? 'folder' : 'document'}?
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-muted" id="admin-delete-description">
+              {tab === 'folders'
+                ? `Delete "${deleteDialog.name}"? Documents in the folder will no longer be available.`
+                : `Delete "${deleteDialog.name}"? This permanently removes the file from storage and its record from the database.`}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                className="min-h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-ink hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                disabled={busy}
+                onClick={() => setDeleteDialog(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                autoFocus
+                className="min-h-10 rounded-lg border border-red-700 bg-red-700 px-4 text-sm font-bold text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-red-700 focus-visible:outline-offset-2 disabled:opacity-60"
+                disabled={busy}
+                onClick={confirmDelete}
+                type="button"
+              >
+                {busy ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </section>
+        )}
+      </ModalShell>
     </>
   )
 }
