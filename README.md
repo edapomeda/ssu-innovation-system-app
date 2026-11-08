@@ -18,6 +18,8 @@ Staff can browse folders and documents shared by other active staff members in t
 
 Pages use React Router and can be opened directly at `/`, `/login`, `/signup`, `/home`, `/records`, `/records/my`, `/records/shared/:folderId`, `/records/:folderId`, `/uploads`, `/admin`, `/admin/files`, or `/profile`.
 
+The Vercel deployment uses [`vercel.json`](./vercel.json) to rewrite direct route requests to the app entry point, so refreshing or opening a nested URL works.
+
 ## Connect Supabase authentication
 
 1. Create a Supabase project, enable Email authentication under **Authentication → Providers**, and turn off **Confirm email** in the Email provider settings so new users can sign in immediately.
