@@ -58,6 +58,9 @@ export default function AuthPage({ type, onSubmit, isConfigured }) {
             ? 'Continue to your Innovation Office workspace.'
             : 'Set up your profile to get started.'}
         </p>
+        <p className="mt-3 rounded-lg border border-[#e5d8b8] bg-[#fffaf0] px-3 py-2.5 text-xs leading-relaxed text-[#72551c]">
+          Public prototype demo. Do not use real passwords or enter sensitive information.
+        </p>
         <form className="mt-5.75 grid gap-3.5" onSubmit={handleSubmit}>
           {!isLogin && (
             <label className="grid gap-2 text-sm font-semibold text-ink">

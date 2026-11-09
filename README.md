@@ -1,6 +1,6 @@
-# SSU Innovation Office
+# Innovation Workspace Prototype
 
-A React and Tailwind CSS app for the Samar State University Innovation Office. The pages are separated into `src/pages` with shared UI components in `src/components`. Email/password authentication, staff-owned folders, and document uploads use Supabase; innovation-record management and profile updates are not implemented yet.
+An independent React and Tailwind CSS prototype for demonstrating an innovation-office workspace. It is not presented as an official institution service. The pages are separated into `src/pages` with shared UI components in `src/components`. Email/password authentication, staff-owned folders, and document uploads use Supabase; innovation-record management and profile updates are not implemented yet.
 
 ## Pages
 

@@ -1,19 +1,19 @@
-import ssuLogo from '../assets/ssu-logo.png'
+import Icon from './Icon'
 
 export default function Brand({ compact = false, inverse = false }) {
   return (
     <div className="flex items-center gap-3">
-      <img
-        alt="Samar State University seal"
-        className={compact ? 'h-11 w-11 object-contain' : 'h-12 w-12 object-contain'}
-        src={ssuLogo}
-      />
+      <span
+        className={`grid ${compact ? 'h-11 w-11' : 'h-12 w-12'} shrink-0 place-items-center rounded-xl ${inverse ? 'bg-white/10 text-white' : 'bg-[#eaf0f7] text-accent'}`}
+      >
+        <Icon className={compact ? 'h-6 w-6' : 'h-7 w-7'} name="lightbulb" />
+      </span>
       <div>
         <p className={`text-xs font-extrabold tracking-[0.075em] ${inverse ? 'text-white' : 'text-ink'}`}>
-          SSU INNOVATION OFFICE
+          INNOVATION WORKSPACE
         </p>
         <p className={`mt-0.5 text-xs ${inverse ? 'text-white/80' : 'text-muted'}`}>
-          We Build, We Innovate, We Serve
+          Public prototype demo
         </p>
       </div>
     </div>

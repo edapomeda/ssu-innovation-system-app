@@ -8,13 +8,13 @@ export default function WelcomePage() {
       <div className="flex h-23 items-center justify-between max-sm:h-19.25 max-sm:gap-2">
         <Brand compact />
         <span className="rounded-full bg-[#eaf0f7] px-3 py-1.5 text-xs font-bold text-accent max-sm:px-2.5">
-          Prototype
+          Public prototype demo
         </span>
       </div>
 
       <section className="mx-auto grid w-full max-w-270 flex-1 grid-cols-2 items-center gap-10 py-8.75 pb-17.5 max-sm:grid-cols-1 max-sm:items-start max-sm:gap-0 max-sm:pb-5 max-sm:pt-16">
         <div className="pb-4.5 max-sm:relative max-sm:z-1 max-sm:pb-0">
-          <p className="eyebrow">SAMAR STATE UNIVERSITY</p>
+          <p className="eyebrow">INDEPENDENT PROTOTYPE</p>
           <h1 className="my-4.5 max-w-[10ch] text-balance text-[clamp(52px,7vw,84px)] font-extrabold leading-[1.02] tracking-[-0.065em] text-ink max-sm:text-[clamp(52px,15vw,72px)]">
             Ideas start
             <br className="max-sm:hidden" />
@@ -58,8 +58,8 @@ export default function WelcomePage() {
       </section>
 
       <footer className="relative z-1 flex min-h-14.5 items-center justify-between gap-4 border-t border-line text-xs text-muted max-sm:min-h-13.75 max-sm:text-[11px]">
-        <span>SSU INNOVATION OFFICE</span>
-        <span className="max-sm:max-w-27.5 max-sm:text-right">We Innovate, We Build, We Serve</span>
+        <span>INNOVATION WORKSPACE</span>
+        <span className="max-sm:max-w-27.5 max-sm:text-right">Prototype demonstration</span>
       </footer>
     </main>
   )
